@@ -1,0 +1,25 @@
+---
+title: "data_cleaning"
+output: html_document
+---
+
+```{r}
+library(haven)
+library(tidyverse)
+dat25 <- read_xpt("../data/LLCP2025.XPT ")
+dat24 <- read_xpt("../data/LLCP2024.XPT ")
+dat23 <- read_xpt("../data/LLCP2023.XPT ")
+dat22 <- read_xpt("../data/LLCP2022.XPT ")
+dat21 <- read_xpt("../data/LLCP2021.XPT ")
+dat20 <- read_xpt("../data/LLCP2020.XPT ")
+dat19 <- read_xpt("../data/LLCP2019.XPT ")
+dat18 <- read_xpt("../data/LLCP2018.XPT ")
+```
+
+# Exploratory data analysis
+`NOBCUSE9` = What was main reason for not doing anything to keep you from getting pregnant?
+
+```{r}
+dat25 |> select(NOBCUSE9)
+```
+
