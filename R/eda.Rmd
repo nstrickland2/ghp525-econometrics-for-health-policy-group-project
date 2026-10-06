@@ -63,7 +63,7 @@ sub_dat22 <- dat22 |> select(c("_STATE","SEXVAR","IMONTH","IDAY","IYEAR","PREGNA
   IDAY = as.integer(as.character(IDAY)),
   date = as.Date(sprintf("%04d-%02d-%02d", IYEAR, IMONTH, IDAY)),
   post_ban = ifelse(
-    date >= as.Date("2022-06-22"),1,0)
+    date >= as.Date("2022-06-24"),1,0)
 )
 
 sub_dat21 <- dat21 |> select(c("_STATE","SEXVAR","PREGNANT", "MENTHLTH","EMPLOY1","_INCOMG1", "EDUCA","_HCVU652", "_RACE")) |> filter(SEXVAR==2) |> select(-SEXVAR) |> rename(INCOME='_INCOMG1', INSURANCE='_HCVU652', EMPLOY='EMPLOY1')
