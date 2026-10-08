@@ -9,7 +9,8 @@ format:
           commandchars=\\\{\}, breaklines, breaknonspaceingroup, breakanywhere
         }
 ---
-
+1. impute and compute state average. make sure account for survey design by incorporating the weights
+2. create a time series database of state policies after June 24, 2022 where the categorical variable has n categories 
 ```{r}
 library(haven)
 library(tidyverse)
@@ -28,11 +29,18 @@ dat17 <- read_xpt("../data/LLCP2017.XPT")
 
 ## variables asked only in 2025, 2024, 2022, 2019, and 2017
 
-`NOBCUSE9` = What was main reason for not doing anything to keep you from getting pregnant? `PFPPRVN4` = The last time you had sexual intercourse, did you or your partner do anything to keep you from getting pregnant? () `FAMILY PLANNING` = The last time you had sexual intercourse, what did you or your partner do to keep you from getting pregnant? (lots of response categories!!!)
+`NOBCUSE9` = What was main reason for not doing anything to keep you from getting pregnant? 
+`PFPPRVN4` = The last time you had sexual intercourse, did you or your partner do anything to keep you from getting pregnant? () 
+`FAMILY PLANNING` = The last time you had sexual intercourse, what did you or your partner do to keep you from getting pregnant? (lots of response categories!!!)
 
 ## variables asked in all surveys
 
-`SEXVAR` = 2 if female
+`SEXVAR` = 2 if femsale
+
+`_AGEG5YR` = 5-year age groups
+
+`EDUCA` = What is the highest grade or year of school you completed? (1=no high school, 2=high school, 3=some college,4=college,9=don't know)
+
 
 `MARITAL`= marital status (1=married, 2=divorced, 3=widowed, 4=separated, 5=never married,6=A member of an unmarried couple, 9 =refused)
 
@@ -41,23 +49,25 @@ dat17 <- read_xpt("../data/LLCP2017.XPT")
 `PREGNANT` = current pregnancy status (1=yes, 2=no, 7=don't know, 9=refused)
 
 `MENTHLTH` = Now thinking about your mental health, which includes stress, depression, and problems with emotions, for how many days during the past 30 days was your mental health not good? (1-30, 88=none,77=don't know, 99=refused)
+- consider state-level databases for COVID-19
 
 `EMPLOY` = employment status (1 = employed for wages, 2 = self-employed, 3 = out of work for 1 year or more, 4 = out of work for less than 1 year, 5 = homemaker, 6 = student, 7 = retired, 8 = unable to work, 9 = refused)
 
 `INCOME` = income categories (1=less than 15k, 2=15k to 25k, 3= 25k to 35k, 4= 35k to 50k, 5=50k to 100k, 6=100k to 200k, 7=200k or more, 9=don't know)
 
-`EDUCA` = What is the highest grade or year of school you completed? (1=no high school, 2=high school, 3=some college,4=college,9=don't know)
-
 `INSURANCE` = Respondents aged 18-64 who have any form of health insurance (1=yes, 2=no, 9=don't know)
+- consider finding a database that focuses on Medicaid access at the state level and use this as a confounder to address omitted variable bias at the state level
 
 `RACE` = Race/ethnicity categories (1=nh white, 2=nh black, 3=nh native american, 4=nh asian, 5=nh native hawaiian, 7=nh multiracial,9=don't know)
+
+
 
 ## subset each survey year to include relevant variables, subsetting the sample to only women
 
 Recode the states in each year since states that didn't collect enough data for a given year weren't included in the dataset
 
 ```{r}
-sub_dat25 <- dat25 |> select(c("_STATE", "SEXVAR", "PREGNANT", "MENTHLTH", "EMPLOY1","_INCOMG1", "EDUCA", "_HCVU654", "_RACE", "RENTHOM1", "MARITAL", "TYPCNT10")) |> filter(SEXVAR==2) |> select(-SEXVAR) |> rename(INCOME='_INCOMG1', INSURANCE='_HCVU654', EMPLOY='EMPLOY1', FAMILY_PLANNING="TYPCNT10", "HOME"=RENTHOM1, RACE="_RACE")
+sub_dat25 <- dat25 |> select(c("_STATE", "_AGEG5YR","SEXVAR", "PREGNANT", "MENTHLTH", "EMPLOY1","_INCOMG1", "EDUCA", "_HCVU654", "_RACE", "RENTHOM1", "MARITAL", "TYPCNT10")) |> filter(SEXVAR==2) |> select(-SEXVAR) |> rename(INCOME='_INCOMG1', INSURANCE='_HCVU654', EMPLOY='EMPLOY1', FAMILY_PLANNING="TYPCNT10", "HOME"=RENTHOM1, RACE="_RACE")
 
 state_labels_2025 <- c(
   `1`  = "Alabama",
@@ -128,7 +138,7 @@ sub_dat25 <- sub_dat25 |>
 ```
 
 ```{r}
-sub_dat24 <- dat24 |> select(c("_STATE","SEXVAR","PREGNANT", "MENTHLTH", "EMPLOY1","_INCOMG1", "EDUCA", "_HCVU654","_RACE", "RENTHOM1", "MARITAL", "TYPCNTR9")) |> filter(SEXVAR==2) |> select(-SEXVAR) |> rename(INCOME='_INCOMG1', INSURANCE='_HCVU654', EMPLOY='EMPLOY1', FAMILY_PLANNING="TYPCNTR9", "HOME"=RENTHOM1, RACE="_RACE")
+sub_dat24 <- dat24 |> select(c("_STATE","_AGEG5YR","SEXVAR","PREGNANT", "MENTHLTH", "EMPLOY1","_INCOMG1", "EDUCA", "_HCVU654","_RACE", "RENTHOM1", "MARITAL", "TYPCNTR9")) |> filter(SEXVAR==2) |> select(-SEXVAR) |> rename(INCOME='_INCOMG1', INSURANCE='_HCVU654', EMPLOY='EMPLOY1', FAMILY_PLANNING="TYPCNTR9", "HOME"=RENTHOM1, RACE="_RACE")
 
 state_labels_2024 <- c(
   `1`  = "Alabama",
@@ -201,7 +211,7 @@ sub_dat24 <- sub_dat24 |>
 
 ```{r}
 # Roe v. Wade was overturned on June 24, 2022
-sub_dat22 <- dat22 |> select(c("_STATE","SEXVAR","IMONTH","IDAY","IYEAR","PREGNANT", "MENTHLTH", "EMPLOY1","_INCOMG1", "EDUCA", "_HCVU652", "_RACE1", "TYPCNTR9", "RENTHOM1")) |> filter(SEXVAR==2) |> select(-SEXVAR) |> rename(INCOME='_INCOMG1', INSURANCE='_HCVU652', EMPLOY='EMPLOY1', FAMILY_PLANNING="TYPCNTR9", HOME="RENTHOM1", RACE="_RACE1") 
+sub_dat22 <- dat22 |> select(c("_STATE","_AGEG5YR","SEXVAR","IMONTH","IDAY","IYEAR","PREGNANT", "MENTHLTH", "EMPLOY1","_INCOMG1", "EDUCA", "_HCVU652", "_RACE1", "TYPCNTR9", "RENTHOM1")) |> filter(SEXVAR==2) |> select(-SEXVAR) |> rename(INCOME='_INCOMG1', INSURANCE='_HCVU652', EMPLOY='EMPLOY1', FAMILY_PLANNING="TYPCNTR9", HOME="RENTHOM1", RACE="_RACE1") 
 state_labels_2022 <- c(
   `1`  = "Alabama",
   `2`  = "Alaska",
@@ -274,7 +284,7 @@ sub_dat22 <- sub_dat22 |>
 ```
 
 ```{r}
-sub_dat19 <- dat19 |> select(c("_STATE","SEXVAR","PREGNANT","MENTHLTH","EMPLOY1","_INCOMG", "EDUCA", "_HCVU651", "_RACE", "RENTHOM1", "MARITAL", "TYPCNTR8")) |> filter(SEXVAR==2) |> select(-SEXVAR) |> rename(INCOME='_INCOMG', INSURANCE='_HCVU651', EMPLOY='EMPLOY1', FAMILY_PLANNING="TYPCNTR8", "HOME"=RENTHOM1, RACE="_RACE")
+sub_dat19 <- dat19 |> select(c("_STATE","_AGEG5YR","SEXVAR","PREGNANT","MENTHLTH","EMPLOY1","_INCOMG", "EDUCA", "_HCVU651", "_RACE", "RENTHOM1", "MARITAL", "TYPCNTR8")) |> filter(SEXVAR==2) |> select(-SEXVAR) |> rename(INCOME='_INCOMG', INSURANCE='_HCVU651', EMPLOY='EMPLOY1', FAMILY_PLANNING="TYPCNTR8", "HOME"=RENTHOM1, RACE="_RACE")
 state_labels_2019 <- c(
   `1`  = "Alabama",
   `2`  = "Alaska",
@@ -345,7 +355,7 @@ sub_dat19 <- sub_dat19 |>
 ```
 
 ```{r}
-sub_dat17 <- dat17 |> select(c("_STATE", "SEX","PREGNANT", "MENTHLTH", "EMPLOY1", "_INCOMG", "EDUCA", "_HCVU651",  "_RACE", "RENTHOM1", "MARITAL", "TYPCNTR7")) |> filter(SEX==2) |> select(-SEX) |> rename(INCOME='_INCOMG', INSURANCE='_HCVU651', EMPLOY='EMPLOY1', FAMILY_PLANNING="TYPCNTR7", "HOME"=RENTHOM1, RACE="_RACE")
+sub_dat17 <- dat17 |> select(c("_STATE", "_AGEG5YR", "SEX","PREGNANT", "MENTHLTH", "EMPLOY1", "_INCOMG", "EDUCA", "_HCVU651",  "_RACE", "RENTHOM1", "MARITAL", "TYPCNTR7")) |> filter(SEX==2) |> select(-SEX) |> rename(INCOME='_INCOMG', INSURANCE='_HCVU651', EMPLOY='EMPLOY1', FAMILY_PLANNING="TYPCNTR7", "HOME"=RENTHOM1, RACE="_RACE")
 state_labels_2017 <- c(
   `1`  = "Alabama",
   `2`  = "Alaska",
@@ -443,6 +453,7 @@ data_list <- list(
 vars_to_keep <- c(
   "_STATE",
   "PREGNANT",
+  "_AGEG5YR",
   "MENTHLTH",
   "EMPLOY",
   "INCOME",
@@ -491,7 +502,7 @@ analysis_data <- purrr::imap_dfr(
         dplyr::mutate(
           date = as.Date(NA),
 
-          POST_BAN = dplyr::case_when(
+          post_ban = dplyr::case_when(
             YEAR <= 2021 ~ 0L,
             YEAR >= 2023 ~ 1L,
             TRUE ~ NA_integer_
@@ -591,7 +602,7 @@ analysis_data_v2 <- analysis_data |>
   dplyr::left_join(
     census_region_lookup,
     by = "STATE"
-  ) |> filter(!is.na(REGION)) 
+  ) |> filter(!is.na(REGION)) |> rename(AGEG5YR = "_AGEG5YR")
 ```
 
 ```{r}
@@ -696,6 +707,17 @@ variables_to_summarize <- c(
 
 
 ```
+
+## Assess Missingness by Age Group
+6 = Age 45 to 49 (menopause starts around this age range)
+```{r}
+analysis_data_v2 |> 
+  count(AGEG5YR, PREGNANT) |> 
+  group_by(AGEG5YR) |>
+  mutate(percent = round(100 *n /sum(n),2)) |> 
+  ungroup()
+```
+
 
 ## U.S. Population Characteristics Over Time
 
@@ -830,7 +852,7 @@ regional_summary <- analysis_data_v2 |>
   ) |>
   ungroup()
 
-regional_summary
+regional_summary |> filter(VARIABLE == "PREGNANT") 
 
 
 ```
