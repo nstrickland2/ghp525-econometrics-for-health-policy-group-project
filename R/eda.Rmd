@@ -35,7 +35,7 @@ dat17 <- read_xpt("../data/LLCP2017.XPT")
 
 ## variables asked in all surveys
 
-`SEXVAR` = 2 if femsale
+`SEXVAR` = 2 if female
 
 `_AGEG5YR` = 5-year age groups
 
@@ -605,8 +605,26 @@ analysis_data_v2 <- analysis_data |>
   ) |> filter(!is.na(REGION)) |> rename(AGEG5YR = "_AGEG5YR")
 ```
 
+
 ```{r}
 variable_labels <- list(
+  
+  AGEG5YR = c(
+  `1`  = "18 to 24 years",
+  `2`  = "25 to 29 years",
+  `3`  = "30 to 34 years",
+  `4`  = "35 to 39 years",
+  `5`  = "40 to 44 years",
+  `6`  = "45 to 49 years",
+  `7`  = "50 to 54 years",
+  `8`  = "55 to 59 years",
+  `9`  = "60 to 64 years",
+  `10` = "65 to 69 years",
+  `11` = "70 to 74 years",
+  `12` = "75 to 79 years",
+  `13` = "80 years or older",
+  `14` = "Don't know/Refused/Missing"
+),
 
   MARITAL = c(
     `1` = "Married",
@@ -660,9 +678,9 @@ variable_labels <- list(
     `2` = "$15,000 to $24,999",
     `3` = "$25,000 to $34,999",
     `4` = "$35,000 to $49,999",
-    `5` = "$50,000 to $99,999",
-    `6` = "$100,000 to $199,999",
-    `7` = "$200,000 or more",
+    `5` = "$50,000 or more", # 2017, 2019 data only has $50k or more so align other years to this format
+    `6` = "$50,000 or more",
+    `7` = "$50,000 or more",
     `9` = "Don't know"
   ),
 
@@ -704,17 +722,30 @@ variables_to_summarize <- c(
   "INSURANCE",
   "RACE"
 )
-
-
 ```
 
 ## Assess Missingness by Age Group
 6 = Age 45 to 49 (menopause starts around this age range)
+Pregnancy Status
+`1` = "Yes",
+`2` = "No",
+`7` = "Don't know",
+`9` = "Refused"
+
+`INSURANCE` = Respondents aged 18-64 who have any form of health insurance (1=yes, 2=no, 9=don't know)
+
+Women who are 50 years old or older (code 7 and above) did not answer the pregnancy question.
 ```{r}
 analysis_data_v2 |> 
   count(AGEG5YR, PREGNANT) |> 
   group_by(AGEG5YR) |>
-  mutate(percent = round(100 *n /sum(n),2)) |> 
+  mutate(percent = round(100 *n /sum(n),3)) |> 
+  ungroup()
+
+analysis_data_v2 |> 
+  count(AGEG5YR, INSURANCE) |> 
+  group_by(AGEG5YR) |>
+  mutate(percent = round(100 *n /sum(n),3)) |> 
   ungroup()
 ```
 
@@ -723,7 +754,7 @@ analysis_data_v2 |>
 
 ```{r}
 # categorical variables
-sapply(names(analysis_data_v2)[!names(analysis_data_v2) %in% c("STATE","YEAR","POST_BAN", "MENTHLTH")], function(var){
+sapply(names(analysis_data_v2)[!names(analysis_data_v2) %in% c("STATE","YEAR","post_ban", "DIVISION","MENTHLTH", "REGION")], function(var){
   ggplot(
   analysis_data_v2,
   aes(x = factor(.data[[var]]))
@@ -795,67 +826,156 @@ get_descriptive_stats_over_entire_period(analysis_data,EDUCA)
 get_descriptive_stats_over_entire_period(analysis_data,INSURANCE)
 ```
 
-Around 66% of women report missing responses when asked if they are currently pregnant. 32% of women report they aren't currently pregnant.
 
-## Trends in the U.S. Regions Over Time
-
+## Summarize Categorical Variables into Count and Percentages
 ```{r}
-regional_summary <- analysis_data_v2 |>
-  select(
-    STATE,
-    REGION,
-    YEAR,
-    all_of(variables_to_summarize)
-  ) |>
-  pivot_longer(
-    cols = all_of(variables_to_summarize),
-    names_to = "VARIABLE",
-    values_to = "VALUE"
-  ) |>
-  mutate(
-    VALUE_CODE = if_else(
-      is.na(VALUE),
-      "Missing",
-      as.character(VALUE)
-    ),
+library(dplyr)
+library(tidyr)
+library(purrr)
 
-    VALUE_LABEL = map2_chr(
-      VARIABLE,
-      VALUE_CODE,
-      function(variable, code) {
-        if (code == "Missing") {
-          return("Missing")
-        }
-
-        label <- unname(variable_labels[[variable]][code])
-
-        if (is.na(label)) {
-          paste("Unlabeled code:", code)
-        } else {
-          label
-        }
-      }
+summarize_categorical <- function(
+    data,
+    group_vars,
+    response_vars,
+    variable_labels
+) {
+  
+  group_vars <- as.character(group_vars)
+  response_vars <- as.character(response_vars)
+  
+  required_vars <- c(group_vars, response_vars)
+  missing_vars <- setdiff(required_vars, names(data))
+  
+  if (length(missing_vars) > 0) {
+    stop(
+      "These variables are not in the dataset: ",
+      paste(missing_vars, collapse = ", ")
     )
-  ) |>
-  count(
-    STATE,
-    REGION,
-    YEAR,
-    VARIABLE,
-    VALUE_CODE,
-    VALUE_LABEL,
-    name = "N"
-  ) |>
-  group_by(STATE, REGION, YEAR, VARIABLE) |>
-  mutate(
-    PERCENT = round(100 * N / sum(N),2)
-  ) |>
-  ungroup()
+  }
+  
+  # Function to retrieve labels
+  lookup_label <- function(variable, code) {
+    
+    # Actual NA values
+    if (is.na(code) || code == "") {
+      return("Missing")
+    }
+    
+    labels <- variable_labels[[variable]]
+    
+    # No label vector exists for the variable
+    if (is.null(labels)) {
+      return(paste("Unlabeled variable:", variable))
+    }
+    
+    label <- unname(labels[as.character(code)])
+    
+    # Code does not exist in the label vector
+    if (length(label) == 0 || is.na(label)) {
+      return(paste("Unlabeled code:", code))
+    }
+    
+    label
+  }
+  
+  output_data <- data |>
+    select(all_of(required_vars))
+  
+  # Create labeled versions of subgroup variables
+  subgroup_label_vars <- character(0)
+  
+  for (group_var in group_vars) {
+    
+    if (group_var %in% names(variable_labels)) {
+      
+      label_var <- paste0(group_var, "_LABEL")
+      
+      output_data[[label_var]] <- purrr::map_chr(
+        as.character(output_data[[group_var]]),
+        ~ lookup_label(group_var, .x)
+      )
+      
+      subgroup_label_vars <- c(subgroup_label_vars, label_var)
+    }
+  }
+  
+  subgroup_vars_for_grouping <- c(
+    group_vars,
+    subgroup_label_vars
+  )
+  
+  output_data |>
+    pivot_longer(
+      cols = all_of(response_vars),
+      names_to = "VARIABLE",
+      values_to = "VALUE"
+    ) |>
+    mutate(
+      VALUE_CODE = if_else(
+        is.na(VALUE),
+        "Missing",
+        as.character(VALUE)
+      ),
+      
+      VALUE_LABEL = purrr::map2_chr(
+        VARIABLE,
+        VALUE_CODE,
+        lookup_label
+      )
+    ) |>
+    group_by(
+      across(
+        all_of(
+          c(
+            subgroup_vars_for_grouping,
+            "VARIABLE",
+            "VALUE_CODE",
+            "VALUE_LABEL"
+          )
+        )
+      )
+    ) |>
+    summarise(
+      N = n(),
+      .groups = "drop"
+    ) |>
+    group_by(
+      across(
+        all_of(
+          c(
+            subgroup_vars_for_grouping,
+            "VARIABLE"
+          )
+        )
+      )
+    ) |>
+    mutate(
+      PERCENT = round(100 * N / sum(N), 2)
+    ) |>
+    ungroup() |>
+    arrange(
+      across(all_of(subgroup_vars_for_grouping)),
+      VARIABLE,
+      VALUE_CODE
+    )
+}
+```
 
-regional_summary |> filter(VARIABLE == "PREGNANT") 
-
+### show summaries for any variable
+```{r}
+summarize_categorical(
+  data = analysis_data_v2 |> filter(AGEG5YR < 7), # filter out women 50 year and above to reduce missingness in pregnant and insurance response
+  group_vars = c(
+    "STATE",
+    "REGION",
+    "YEAR"
+  ),
+  response_vars = "INSURANCE", # change this variable to any you want
+  variable_labels = variable_labels
+)
 
 ```
+
 
 ```{r}
 plot_variable <- function(data, variable_name, plot_title, legend_title) {
@@ -883,58 +1003,126 @@ plot_variable <- function(data, variable_name, plot_title, legend_title) {
       axis.text.x = element_text(angle = 45, hjust = 1)
     )
 }
+```
 
+## Trends in the U.S. Regions Over Time
+```{r}
 var_by_region_plots <- list(
   marital = plot_variable(
-    regional_summary,
+    summarize_categorical(
+  data = analysis_data_v2 |> filter(AGEG5YR < 7), 
+  group_vars = c(
+    "STATE",
+    "REGION",
+    "YEAR"
+  ),
+  response_vars = "MARITAL",
+  variable_labels = variable_labels
+),
     "MARITAL",
     "Marital Status by Region and Year",
     "Marital status"
   ),
 
   home = plot_variable(
-    regional_summary,
+    
+    data = summarize_categorical(
+  data = analysis_data_v2 |> filter(AGEG5YR < 7), 
+  group_vars = c(
+    "STATE",
+    "REGION",
+    "YEAR"
+  ),
+  response_vars = "HOME",
+  variable_labels = variable_labels
+),
     "HOME",
     "Homeowner Status by Region and Year",
     "Homeowner status"
   ),
 
   pregnant = plot_variable(
-    regional_summary,
+    data = summarize_categorical(
+  data = analysis_data_v2 |> filter(AGEG5YR < 7), 
+  group_vars = c(
+    "STATE",
+    "REGION",
+    "YEAR"
+  ),
+  response_vars = "PREGNANT",
+  variable_labels = variable_labels
+),
     "PREGNANT",
     "Pregnancy Status by Region and Year",
     "Pregnancy status"
   ),
 
   employ = plot_variable(
-    regional_summary,
+    data = summarize_categorical(
+  data = analysis_data_v2 |> filter(AGEG5YR < 7), 
+  group_vars = c(
+    "STATE",
+    "REGION",
+    "YEAR"
+  ),
+  response_vars = "EMPLOY",
+  variable_labels = variable_labels
+),
     "EMPLOY",
     "Employment Status by Region and Year",
     "Employment status"
   ),
 
   income = plot_variable(
-    regional_summary,
+    data = summarize_categorical(
+  data = analysis_data_v2 |> filter(AGEG5YR < 7), 
+  group_vars = c(
+    "STATE",
+    "REGION",
+    "YEAR"
+  ),
+  response_vars = "INCOME",
+  variable_labels = variable_labels
+),
     "INCOME",
     "Income Categories by Region and Year",
     "Income category"
   ),
 
   insurance = plot_variable(
-    regional_summary,
+    data = summarize_categorical(
+  data = analysis_data_v2 |> filter(AGEG5YR < 7), 
+  group_vars = c(
+    "STATE",
+    "REGION",
+    "YEAR"
+  ),
+  response_vars = "INSURANCE",
+  variable_labels = variable_labels
+),
     "INSURANCE",
     "Health Insurance Status by Region and Year",
     "Insurance status"
   ),
 
   race = plot_variable(
-    regional_summary,
+    data = summarize_categorical(
+  data = analysis_data_v2 |> filter(AGEG5YR < 7), 
+  group_vars = c(
+    "STATE",
+    "REGION",
+    "YEAR"
+  ),
+  response_vars = "RACE",
+  variable_labels = variable_labels
+),
     "RACE",
     "Race and Ethnicity by Region and Year",
     "Race and ethnicity"
   )
 )
 ```
+
 
 ```{r}
 var_by_region_plots$marital
