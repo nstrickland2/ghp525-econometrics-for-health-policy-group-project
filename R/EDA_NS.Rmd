@@ -1,0 +1,1426 @@
+---
+title: "Exploratory Data Analysis"
+author: Nyah Strickland
+format:
+  pdf:
+    include-in-header:
+      text: |
+        \usepackage{fvextra}
+        \DefineVerbatimEnvironment{Highlighting}{Verbatim}{
+          commandchars=\\\{\}, breaklines, breaknonspaceingroup, breakanywhere
+        }
+---
+1. impute and compute state average. make sure account for survey design by incorporating the weights
+2. create a time series database of state policies after June 24, 2022 where the categorical variable has n categories 
+```{r}
+library(haven)
+library(tidyverse)
+dat25 <- read_xpt("../data/LLCP2025.XPT")
+dat24 <- read_xpt("../data/LLCP2024.XPT")
+#dat23 <- read_xpt("../data/LLCP2023.XPT")
+dat22 <- read_xpt("../data/LLCP2022.XPT")
+#dat21 <- read_xpt("../data/LLCP2021.XPT")
+#dat20 <- read_xpt("../data/LLCP2020.XPT")
+dat19 <- read_xpt("../data/LLCP2019.XPT")
+#dat18 <- read_xpt("../data/LLCP2018.XPT")
+dat17 <- read_xpt("../data/LLCP2017.XPT")
+```
+
+# Exploratory data analysis
+
+## variables asked only in 2025, 2024, 2022, 2019, and 2017
+
+`NOBCUSE9` = What was main reason for not doing anything to keep you from getting pregnant? 
+`PFPPRVN4` = The last time you had sexual intercourse, did you or your partner do anything to keep you from getting pregnant? () 
+`FAMILY PLANNING` = The last time you had sexual intercourse, what did you or your partner do to keep you from getting pregnant? (lots of response categories!!!)
+
+## variables asked in all surveys
+
+`SEXVAR` = 2 if female
+
+`_AGEG5YR` = 5-year age groups
+
+`EDUCA` = What is the highest grade or year of school you completed? (1=no high school, 2=high school, 3=some college,4=college,9=don't know)
+
+
+`MARITAL`= marital status (1=married, 2=divorced, 3=widowed, 4=separated, 5=never married,6=A member of an unmarried couple, 9 =refused)
+
+`HOME`= homeowner status (1=own, 2=rent, 3=other arrangement, 7=don't know, 9=refused)
+
+`PREGNANT` = current pregnancy status (1=yes, 2=no, 7=don't know, 9=refused)
+
+`MENTHLTH` = Now thinking about your mental health, which includes stress, depression, and problems with emotions, for how many days during the past 30 days was your mental health not good? (1-30, 88=none,77=don't know, 99=refused)
+- consider state-level databases for COVID-19
+
+`EMPLOY` = employment status (1 = employed for wages, 2 = self-employed, 3 = out of work for 1 year or more, 4 = out of work for less than 1 year, 5 = homemaker, 6 = student, 7 = retired, 8 = unable to work, 9 = refused)
+
+`INCOME` = income categories (1=less than 15k, 2=15k to 25k, 3= 25k to 35k, 4= 35k to 50k, 5=50k to 100k, 6=100k to 200k, 7=200k or more, 9=don't know)
+
+`INSURANCE` = Respondents aged 18-64 who have any form of health insurance (1=yes, 2=no, 9=don't know)
+- consider finding a database that focuses on Medicaid access at the state level and use this as a confounder to address omitted variable bias at the state level
+
+`RACE` = Race/ethnicity categories (1=nh white, 2=nh black, 3=nh native american, 4=nh asian, 5=nh native hawaiian, 7=nh multiracial,9=don't know)
+
+`HLTHCVR1`(2017,2019) / PRIMINSR (2022) / PRIMINS2 (2024, 2025) = What is the primary source of your health care coverage? Is it…
+
+## subset each survey year to include relevant variables, subsetting the sample to only women
+
+Recode the states in each year since states that didn't collect enough data for a given year weren't included in the dataset
+
+```{r}
+sub_dat25 <- dat25 |> select(c("_STATE", "_AGEG5YR","SEXVAR", "PREGNANT", "MENTHLTH", "EMPLOY1","_INCOMG1", "EDUCA", "_HCVU654", "_RACE", "RENTHOM1", "MARITAL", "TYPCNT10", "PRIMINS2")) |> filter(SEXVAR==2) |> select(-SEXVAR) |> rename(INCOME='_INCOMG1', INSURANCE='_HCVU654', EMPLOY='EMPLOY1', FAMILY_PLANNING="TYPCNT10", "HOME"=RENTHOM1, RACE="_RACE", TYPEINS="PRIMINS2")
+
+state_labels_2025 <- c(
+  `1`  = "Alabama",
+  `2`  = "Alaska",
+  `4`  = "Arizona",
+  `5`  = "Arkansas",
+  `8`  = "Colorado",
+  `9`  = "Connecticut",
+  `10` = "Delaware",
+  `11` = "District of Columbia",
+  `12` = "Florida",
+  `13` = "Georgia",
+  `15` = "Hawaii",
+  `16` = "Idaho",
+  `17` = "Illinois",
+  `18` = "Indiana",
+  `19` = "Iowa",
+  `20` = "Kansas",
+  `21` = "Kentucky",
+  `22` = "Louisiana",
+  `23` = "Maine",
+  `24` = "Maryland",
+  `25` = "Massachusetts",
+  `26` = "Michigan",
+  `27` = "Minnesota",
+  `29` = "Missouri",
+  `30` = "Montana",
+  `31` = "Nebraska",
+  `33` = "New Hampshire",
+  `34` = "New Jersey",
+  `35` = "New Mexico",
+  `36` = "New York",
+  `37` = "North Carolina",
+  `38` = "North Dakota",
+  `39` = "Ohio",
+  `40` = "Oklahoma",
+  `41` = "Oregon",
+  `42` = "Pennsylvania",
+  `44` = "Rhode Island",
+  `45` = "South Carolina",
+  `46` = "South Dakota",
+  `47` = "Tennessee",
+  `48` = "Texas",
+  `49` = "Utah",
+  `50` = "Vermont",
+  `51` = "Virginia",
+  `53` = "Washington",
+  `54` = "West Virginia",
+  `55` = "Wisconsin",
+  `56` = "Wyoming",
+  `66` = "Guam",
+  `72` = "Puerto Rico"
+)
+
+sub_dat25 <- sub_dat25 |>
+  dplyr::mutate(
+    `_STATE` = as.character(unname(
+      state_labels_2025[as.character(`_STATE`)]
+    )
+  )) |>
+    mutate(EDUCA = case_when(
+        EDUCA %in% 1:3 ~ 1, # no high school
+        EDUCA == 4 ~ 2, # high school
+        EDUCA == 5 ~ 3 ,#Some college
+        EDUCA == 6 ~ 4 ,#College graduate
+        EDUCA == 9 ~ 9  #Don't know
+  ))
+```
+
+```{r}
+sub_dat24 <- dat24 |> select(c("_STATE","_AGEG5YR","SEXVAR","PREGNANT", "MENTHLTH", "EMPLOY1","_INCOMG1", "EDUCA", "_HCVU654","_RACE", "RENTHOM1", "MARITAL", "TYPCNTR9", "PRIMINS2")) |> filter(SEXVAR==2) |> select(-SEXVAR) |> rename(INCOME='_INCOMG1', INSURANCE='_HCVU654', EMPLOY='EMPLOY1', FAMILY_PLANNING="TYPCNTR9", "HOME"=RENTHOM1, RACE="_RACE", TYPEINS="PRIMINS2")
+
+state_labels_2024 <- c(
+  `1`  = "Alabama",
+  `2`  = "Alaska",
+  `4`  = "Arizona",
+  `5`  = "Arkansas",
+  `6`  = "California",
+  `8`  = "Colorado",
+  `9`  = "Connecticut",
+  `10` = "Delaware",
+  `11` = "District of Columbia",
+  `12` = "Florida",
+  `13` = "Georgia",
+  `15` = "Hawaii",
+  `16` = "Idaho",
+  `17` = "Illinois",
+  `18` = "Indiana",
+  `19` = "Iowa",
+  `20` = "Kansas",
+  `21` = "Kentucky",
+  `22` = "Louisiana",
+  `23` = "Maine",
+  `24` = "Maryland",
+  `25` = "Massachusetts",
+  `26` = "Michigan",
+  `27` = "Minnesota",
+  `28` = "Mississippi",
+  `29` = "Missouri",
+  `30` = "Montana",
+  `31` = "Nebraska",
+  `32` = "Nevada",
+  `33` = "New Hampshire",
+  `34` = "New Jersey",
+  `35` = "New Mexico",
+  `36` = "New York",
+  `37` = "North Carolina",
+  `38` = "North Dakota",
+  `39` = "Ohio",
+  `40` = "Oklahoma",
+  `41` = "Oregon",
+  `42` = "Pennsylvania",
+  `44` = "Rhode Island",
+  `45` = "South Carolina",
+  `46` = "South Dakota",
+  `48` = "Texas",
+  `49` = "Utah",
+  `50` = "Vermont",
+  `51` = "Virginia",
+  `53` = "Washington",
+  `54` = "West Virginia",
+  `55` = "Wisconsin",
+  `56` = "Wyoming",
+  `66` = "Guam",
+  `72` = "Puerto Rico",
+  `78` = "Virgin Islands"
+)
+sub_dat24 <- sub_dat24 |>
+  dplyr::mutate(
+    `_STATE` = as.character(unname(
+      state_labels_2024[as.character(`_STATE`)]
+    )
+  )) |> mutate(EDUCA = case_when(
+        EDUCA %in% 1:3 ~ 1, # no high school
+        EDUCA == 4 ~ 2, # high school
+        EDUCA == 5 ~ 3 ,#Some college
+        EDUCA == 6 ~ 4 ,#College graduate
+        EDUCA == 9 ~ 9  #Don't know
+  ))
+```
+
+```{r}
+# Roe v. Wade was overturned on June 24, 2022
+sub_dat22 <- dat22 |> select(c("_STATE","_AGEG5YR","SEXVAR","IMONTH","IDAY","IYEAR","PREGNANT", "MENTHLTH", "EMPLOY1","_INCOMG1", "MARITAL","EDUCA", "_HCVU652", "_RACE1", "TYPCNTR9", "RENTHOM1", "PRIMINSR")) |> filter(SEXVAR==2) |> select(-SEXVAR) |> rename(INCOME='_INCOMG1', INSURANCE='_HCVU652', EMPLOY='EMPLOY1', FAMILY_PLANNING="TYPCNTR9", HOME="RENTHOM1", RACE="_RACE1", TYPEINS="PRIMINSR") 
+state_labels_2022 <- c(
+  `1`  = "Alabama",
+  `2`  = "Alaska",
+  `4`  = "Arizona",
+  `5`  = "Arkansas",
+  `6`  = "California",
+  `8`  = "Colorado",
+  `9`  = "Connecticut",
+  `10` = "Delaware",
+  `11` = "District of Columbia",
+  `12` = "Florida",
+  `13` = "Georgia",
+  `15` = "Hawaii",
+  `16` = "Idaho",
+  `17` = "Illinois",
+  `18` = "Indiana",
+  `19` = "Iowa",
+  `20` = "Kansas",
+  `21` = "Kentucky",
+  `22` = "Louisiana",
+  `23` = "Maine",
+  `24` = "Maryland",
+  `25` = "Massachusetts",
+  `26` = "Michigan",
+  `27` = "Minnesota",
+  `28` = "Mississippi",
+  `29` = "Missouri",
+  `30` = "Montana",
+  `31` = "Nebraska",
+  `32` = "Nevada",
+  `33` = "New Hampshire",
+  `34` = "New Jersey",
+  `35` = "New Mexico",
+  `36` = "New York",
+  `37` = "North Carolina",
+  `38` = "North Dakota",
+  `39` = "Ohio",
+  `40` = "Oklahoma",
+  `41` = "Oregon",
+  `42` = "Pennsylvania",
+  `44` = "Rhode Island",
+  `45` = "South Carolina",
+  `46` = "South Dakota",
+  `47` = "Tennessee",
+  `48` = "Texas",
+  `49` = "Utah",
+  `50` = "Vermont",
+  `51` = "Virginia",
+  `53` = "Washington",
+  `54` = "West Virginia",
+  `55` = "Wisconsin",
+  `56` = "Wyoming",
+  `66` = "Guam",
+  `72` = "Puerto Rico",
+  `78` = "Virgin Islands"
+)
+sub_dat22 <- sub_dat22 |>
+  dplyr::mutate(
+    `_STATE` = as.character(unname(
+      state_labels_2022[as.character(`_STATE`)]
+    )
+  ))|> mutate(EDUCA = case_when(
+        EDUCA %in% 1:3 ~ 1, # no high school
+        EDUCA == 4 ~ 2, # high school
+        EDUCA == 5 ~ 3 ,#Some college
+        EDUCA == 6 ~ 4 ,#College graduate
+        EDUCA == 9 ~ 9  #Don't know
+  ))
+
+```
+
+```{r}
+sub_dat19 <- dat19 |> select(c("_STATE","_AGEG5YR","SEXVAR","PREGNANT","MENTHLTH","EMPLOY1","_INCOMG", "EDUCA", "_HCVU651", "_RACE", "RENTHOM1", "MARITAL", "TYPCNTR8", "HLTHCVR1")) |> filter(SEXVAR==2) |> select(-SEXVAR) |> rename(INCOME='_INCOMG', INSURANCE='_HCVU651', EMPLOY='EMPLOY1', FAMILY_PLANNING="TYPCNTR8", "HOME"=RENTHOM1, RACE="_RACE", TYPEINS="HLTHCVR1")
+state_labels_2019 <- c(
+  `1`  = "Alabama",
+  `2`  = "Alaska",
+  `4`  = "Arizona",
+  `5`  = "Arkansas",
+  `6`  = "California",
+  `8`  = "Colorado",
+  `9`  = "Connecticut",
+  `10` = "Delaware",
+  `11` = "District of Columbia",
+  `12` = "Florida",
+  `13` = "Georgia",
+  `15` = "Hawaii",
+  `16` = "Idaho",
+  `17` = "Illinois",
+  `18` = "Indiana",
+  `19` = "Iowa",
+  `20` = "Kansas",
+  `21` = "Kentucky",
+  `22` = "Louisiana",
+  `23` = "Maine",
+  `24` = "Maryland",
+  `25` = "Massachusetts",
+  `26` = "Michigan",
+  `27` = "Minnesota",
+  `28` = "Mississippi",
+  `29` = "Missouri",
+  `30` = "Montana",
+  `31` = "Nebraska",
+  `32` = "Nevada",
+  `33` = "New Hampshire",
+  `35` = "New Mexico",
+  `36` = "New York",
+  `37` = "North Carolina",
+  `38` = "North Dakota",
+  `39` = "Ohio",
+  `40` = "Oklahoma",
+  `41` = "Oregon",
+  `42` = "Pennsylvania",
+  `44` = "Rhode Island",
+  `45` = "South Carolina",
+  `46` = "South Dakota",
+  `47` = "Tennessee",
+  `48` = "Texas",
+  `49` = "Utah",
+  `50` = "Vermont",
+  `51` = "Virginia",
+  `53` = "Washington",
+  `54` = "West Virginia",
+  `55` = "Wisconsin",
+  `56` = "Wyoming",
+  `66` = "Guam",
+  `72` = "Puerto Rico"
+)
+sub_dat19 <- sub_dat19 |>
+  dplyr::mutate(
+    `_STATE` = as.character(unname(
+      state_labels_2019[as.character(`_STATE`)]
+    )
+  )) |>
+    mutate(EDUCA = case_when(
+        EDUCA %in% 1:3 ~ 1, # no high school
+        EDUCA == 4 ~ 2, # high school
+        EDUCA == 5 ~ 3 ,#Some college
+        EDUCA == 6 ~ 4 ,#College graduate
+        EDUCA == 9 ~ 9  #Don't know
+  ))
+```
+
+```{r}
+sub_dat17 <- dat17 |> select(c("_STATE", "_AGEG5YR", "SEX","PREGNANT", "MENTHLTH", "EMPLOY1", "_INCOMG", "EDUCA", "_HCVU651",  "_RACE", "RENTHOM1", "MARITAL", "TYPCNTR7", "HLTHCVR1")) |> filter(SEX==2) |> select(-SEX) |> rename(INCOME='_INCOMG', INSURANCE='_HCVU651', EMPLOY='EMPLOY1', FAMILY_PLANNING="TYPCNTR7", "HOME"=RENTHOM1, RACE="_RACE", TYPEINS="HLTHCVR1")
+state_labels_2017 <- c(
+  `1`  = "Alabama",
+  `2`  = "Alaska",
+  `4`  = "Arizona",
+  `5`  = "Arkansas",
+  `6`  = "California",
+  `8`  = "Colorado",
+  `9`  = "Connecticut",
+  `10` = "Delaware",
+  `11` = "District of Columbia",
+  `12` = "Florida",
+  `13` = "Georgia",
+  `15` = "Hawaii",
+  `16` = "Idaho",
+  `17` = "Illinois",
+  `18` = "Indiana",
+  `19` = "Iowa",
+  `20` = "Kansas",
+  `21` = "Kentucky",
+  `22` = "Louisiana",
+  `23` = "Maine",
+  `24` = "Maryland",
+  `25` = "Massachusetts",
+  `26` = "Michigan",
+  `27` = "Minnesota",
+  `28` = "Mississippi",
+  `29` = "Missouri",
+  `30` = "Montana",
+  `31` = "Nebraska",
+  `32` = "Nevada",
+  `33` = "New Hampshire",
+  `34` = "New Jersey",
+  `35` = "New Mexico",
+  `36` = "New York",
+  `37` = "North Carolina",
+  `38` = "North Dakota",
+  `39` = "Ohio",
+  `40` = "Oklahoma",
+  `41` = "Oregon",
+  `42` = "Pennsylvania",
+  `44` = "Rhode Island",
+  `45` = "South Carolina",
+  `46` = "South Dakota",
+  `47` = "Tennessee",
+  `48` = "Texas",
+  `49` = "Utah",
+  `50` = "Vermont",
+  `51` = "Virginia",
+  `53` = "Washington",
+  `54` = "West Virginia",
+  `55` = "Wisconsin",
+  `56` = "Wyoming",
+  `66` = "Guam",
+  `72` = "Puerto Rico"
+)
+sub_dat17 <- sub_dat17 |>
+  dplyr::mutate(
+    `_STATE` = as.character(unname(
+      state_labels_2017[as.character(`_STATE`)]
+    )
+  )) |>
+  mutate(EDUCA = case_when(
+        EDUCA %in% 1:3 ~ 1, # no high school
+        EDUCA == 4 ~ 2, # high school
+        EDUCA == 5 ~ 3 ,#Some college
+        EDUCA == 6 ~ 4 ,#College graduate
+        EDUCA == 9 ~ 9  #Don't know
+  ))
+
+```
+
+
+```{r,eval=FALSE}
+sub_dat23 <- dat23 |> select(c("_STATE","SEXVAR","PREGNANT", "MENTHLTH","EMPLOY1", "_INCOMG1", "EDUCA", "_HCVU653", "_RACE")) |> filter(SEXVAR==2) |> select(-SEXVAR) |> rename(INCOME='_INCOMG1', INSURANCE='_HCVU653', EMPLOY='EMPLOY1')
+
+
+sub_dat21 <- dat21 |> select(c("_STATE","SEXVAR","PREGNANT", "MENTHLTH","EMPLOY1","_INCOMG1", "EDUCA","_HCVU652", "_RACE")) |> filter(SEXVAR==2) |> select(-SEXVAR) |> rename(INCOME='_INCOMG1', INSURANCE='_HCVU652', EMPLOY='EMPLOY1') 
+
+sub_dat20 <- dat20 |> select(c("_STATE","SEXVAR","PREGNANT", "MENTHLTH","EMPLOY1", "_INCOMG", "EDUCA",  "_HCVU651", "_RACE")) |> filter(SEXVAR==2) |> select(-SEXVAR) |> rename(INCOME='_INCOMG', INSURANCE='_HCVU651', EMPLOY='EMPLOY1')
+
+
+sub_dat18 <- dat18 |> select(c("_STATE", "SEX1","PREGNANT", "MENTHLTH", "EMPLOY1", "_INCOMG", "EDUCA", "_HCVU651",  "_RACE", "RENTHOM1", "MARITAL")) |> filter(SEX1==2) |> select(-SEX1) |> rename(INCOME='_INCOMG', INSURANCE='_HCVU651', EMPLOY='EMPLOY1')
+```
+
+# Variability in insurance type variable over time
+```{r}
+INSURANCE_TYPE_after_22 = c(
+  `1` = "A plan purchased through an employer or union (including plans purchased through another person’s employer)",
+  `2` = "A private nongovernmental plan that you or another family member buys on your own",
+  `3` = "Medicare",
+  `4` = "Medigap",
+  `5` = "Medicaid",
+  `6` = "Children’s Health Insurance Program (CHIP)",
+  `7` = "Military related health care: TRICARE (CHAMPUS) / VA health care / CHAMP-VA",
+  `8` = "Indian Health Service",
+  `9` = "State sponsored health plan",
+  `10` = "Other government program",
+  `88` = "No coverage of any type",
+  `77` = "Don’t know/Not Sure",
+  `99` = "Refused",
+  `BLANK` = "Not asked or Missing"
+)
+
+INSURANCE_TYPE_before_22 = c(
+  `1` = "A plan purchased through an employer or union; includes plans purchased through another person's employer",
+  `2` = "A plan that you or another family member buys on your own",
+  `3` = "Medicare",
+  `4` = "Medicaid or other state program",
+  `5` = "TRICARE (formerly CHAMPUS), VA, or Military",
+  `6` = "Alaska Native, Indian Health Service, Tribal Health Services",
+  `7` = "Some other source",
+  `8` = "None (no coverage)",
+  `77` = "Don't know/Not Sure",
+  `99` = "Refused",
+  `BLANK` = "Not asked or Missing"
+)
+
+library(dplyr)
+library(ggplot2)
+library(viridis)
+
+insurance_type_plot <- function(var, data, label_map, plot_title) {
+
+  factor_var <- paste0(var, "_factor")
+
+  data[[factor_var]] <- factor(
+    as.character(data[[var]]),
+    levels = names(label_map)
+  )
+
+  legend_labels <- function(x) {
+    x <- as.character(x)
+    value_labels <- unname(label_map[x])
+
+    # Use the numeric code if a label is unavailable
+    value_labels[is.na(value_labels)] <- x[is.na(value_labels)]
+
+    paste0(x, " = ", value_labels)
+  }
+
+  ggplot(
+    data,
+    aes(
+      x = .data[[factor_var]],
+      fill = .data[[factor_var]]
+    )
+  ) +
+    geom_bar(color = "white") +
+    scale_fill_viridis_d(
+      name = var,
+      labels = legend_labels,
+      drop = TRUE
+    ) +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(
+        angle = 45,
+        hjust = 1
+      ),
+      legend.position = "right",
+      legend.text = element_text(size = 9)
+    ) +
+    labs(
+      title = plot_title,
+      x = "Numeric response code",
+      y = "Count"
+    )
+}
+
+
+# Create output folder
+output_dir <- "plots"
+dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+
+# Create plots
+p_2017 <- insurance_type_plot(
+  var = "TYPEINS",
+  data = sub_dat17 |>
+    rename(age = "_AGEG5YR") |>
+    filter(age < 7),
+  label_map = INSURANCE_TYPE_before_22,
+  plot_title = "Health Insurance Type, BRFSS 2017"
+)
+
+p_2019 <- insurance_type_plot(
+  var = "TYPEINS",
+  data = sub_dat19 |>
+    rename(age = "_AGEG5YR") |>
+    filter(age < 7),
+  label_map = INSURANCE_TYPE_before_22,
+  plot_title = "Health Insurance Type, BRFSS 2019"
+)
+
+p_2022 <- insurance_type_plot(
+  var = "TYPEINS",
+  data = sub_dat22 |>
+    rename(age = "_AGEG5YR") |>
+    filter(age < 7),
+  label_map = INSURANCE_TYPE_after_22,
+  plot_title = "Health Insurance Type, BRFSS 2022"
+)
+
+p_2024 <- insurance_type_plot(
+  var = "TYPEINS",
+  data = sub_dat24 |>
+    rename(age = "_AGEG5YR") |>
+    filter(age < 7),
+  label_map = INSURANCE_TYPE_after_22,
+  plot_title = "Health Insurance Type, BRFSS 2024"
+)
+
+p_2025 <- insurance_type_plot(
+  var = "TYPEINS",
+  data = sub_dat25 |>
+    rename(age = "_AGEG5YR") |>
+    filter(age < 7),
+  label_map = INSURANCE_TYPE_after_22,
+  plot_title = "Health Insurance Type, BRFSS 2025"
+)
+ggsave(
+  filename = file.path(output_dir, "health_insurance_type_2017.png"),
+  plot = p_2017,
+  width = 14,
+  height = 9,
+  units = "in",
+  dpi = 300
+)
+
+ggsave(
+  filename = file.path(output_dir, "health_insurance_type_2019.png"),
+  plot = p_2019,
+  width = 14,
+  height = 9,
+  units = "in",
+  dpi = 300
+)
+
+ggsave(
+  filename = file.path(output_dir, "health_insurance_type_2022.png"),
+  plot = p_2022,
+  width = 14,
+  height = 9,
+  units = "in",
+  dpi = 300
+)
+
+ggsave(
+  filename = file.path(output_dir, "health_insurance_type_2024.png"),
+  plot = p_2024,
+  width = 14,
+  height = 9,
+  units = "in",
+  dpi = 300
+)
+
+ggsave(
+  filename = file.path(output_dir, "health_insurance_type_2025.png"),
+  plot = p_2025,
+  width = 14,
+  height = 9,
+  units = "in",
+  dpi = 300
+)
+```
+
+
+## merge relevant questionnaire years
+
+```{r}
+data_list <- list(
+  `2017` = sub_dat17,
+  `2019` = sub_dat19,
+  `2022` = sub_dat22,
+  `2024` = sub_dat24,
+  `2025` = sub_dat25
+)
+
+vars_to_keep <- c(
+  "_STATE",
+  "PREGNANT",
+  "_AGEG5YR",
+  "MENTHLTH",
+  "EMPLOY",
+  "INCOME",
+  "EDUCA",
+  "INSURANCE",
+  "RACE",
+  "MARITAL",
+  "HOME",
+  "TYPEINS",
+  "FAMILY_PLANNING",
+  "IYEAR",
+  "IMONTH",
+  "IDAY"
+)
+
+analysis_data <- purrr::imap_dfr(
+  data_list,
+  function(dataset, year) {
+
+    year <- as.integer(year)
+
+    dataset <- dataset |>
+      dplyr::select(dplyr::any_of(vars_to_keep)) |>
+      dplyr::mutate(
+        YEAR = year
+      )
+
+    if (year == 2022) {
+      dataset <- dataset |>
+        dplyr::mutate(
+          IYEAR = as.integer(as.character(IYEAR)),
+          IMONTH = as.integer(as.character(IMONTH)),
+          IDAY = as.integer(as.character(IDAY)),
+
+          date = as.Date(
+            sprintf("%04d-%02d-%02d", IYEAR, IMONTH, IDAY)
+          ),
+
+          post_ban = dplyr::case_when(
+            date < as.Date("2022-06-24") ~ 0L,
+            date >= as.Date("2022-06-24") ~ 1L,
+            TRUE ~ NA_integer_
+          )
+        )
+    } else {
+      dataset <- dataset |>
+        dplyr::mutate(
+          date = as.Date(NA),
+
+          post_ban = dplyr::case_when(
+            YEAR <= 2021 ~ 0L,
+            YEAR >= 2023 ~ 1L,
+            TRUE ~ NA_integer_
+          )
+        )
+    }
+
+    dataset
+  }
+) |>
+  dplyr::rename(STATE = `_STATE`) |> select(-c(IYEAR, IMONTH, IDAY, date))
+
+
+# check that post ban was correctly created
+analysis_data |> filter(YEAR == 2025) |> janitor::tabyl(post_ban)
+analysis_data |> filter(YEAR == 2024) |> janitor::tabyl(post_ban)
+analysis_data |> filter(YEAR == 2022) |> janitor::tabyl(post_ban)
+analysis_data |> filter(YEAR == 2019) |> janitor::tabyl(post_ban)
+analysis_data |> filter(YEAR == 2017) |> janitor::tabyl(post_ban)
+```
+
+## create U.S. census regions
+
+```{r}
+library(tibble)
+
+census_region_lookup <- tribble(
+  ~STATE, ~REGION, ~DIVISION,
+
+  # Northeast
+  "Connecticut",          "Northeast", "New England",
+  "Maine",                "Northeast", "New England",
+  "Massachusetts",        "Northeast", "New England",
+  "New Hampshire",        "Northeast", "New England",
+  "Rhode Island",         "Northeast", "New England",
+  "Vermont",              "Northeast", "New England",
+  "New Jersey",           "Northeast", "Middle Atlantic",
+  "New York",             "Northeast", "Middle Atlantic",
+  "Pennsylvania",         "Northeast", "Middle Atlantic",
+
+  # Midwest
+  "Illinois",             "Midwest", "East North Central",
+  "Indiana",              "Midwest", "East North Central",
+  "Michigan",             "Midwest", "East North Central",
+  "Ohio",                 "Midwest", "East North Central",
+  "Wisconsin",            "Midwest", "East North Central",
+  "Iowa",                 "Midwest", "West North Central",
+  "Kansas",               "Midwest", "West North Central",
+  "Minnesota",            "Midwest", "West North Central",
+  "Missouri",             "Midwest", "West North Central",
+  "Nebraska",             "Midwest", "West North Central",
+  "North Dakota",         "Midwest", "West North Central",
+  "South Dakota",         "Midwest", "West North Central",
+
+  # South
+  "Delaware",             "South", "South Atlantic",
+  "District of Columbia", "South", "South Atlantic",
+  "Florida",              "South", "South Atlantic",
+  "Georgia",              "South", "South Atlantic",
+  "Maryland",             "South", "South Atlantic",
+  "North Carolina",       "South", "South Atlantic",
+  "South Carolina",       "South", "South Atlantic",
+  "Virginia",             "South", "South Atlantic",
+  "West Virginia",        "South", "South Atlantic",
+  "Alabama",              "South", "East South Central",
+  "Kentucky",             "South", "East South Central",
+  "Mississippi",          "South", "East South Central",
+  "Tennessee",            "South", "East South Central",
+  "Arkansas",             "South", "West South Central",
+  "Louisiana",            "South", "West South Central",
+  "Oklahoma",             "South", "West South Central",
+  "Texas",                "South", "West South Central",
+
+  # West
+  "Arizona",              "West", "Mountain",
+  "Colorado",             "West", "Mountain",
+  "Idaho",                "West", "Mountain",
+  "Montana",              "West", "Mountain",
+  "Nevada",               "West", "Mountain",
+  "New Mexico",           "West", "Mountain",
+  "Utah",                 "West", "Mountain",
+  "Wyoming",              "West", "Mountain",
+  "Alaska",               "West", "Pacific",
+  "California",           "West", "Pacific",
+  "Hawaii",               "West", "Pacific",
+  "Oregon",               "West", "Pacific",
+  "Washington",           "West", "Pacific",
+
+  # Territories: not assigned to a Census region/division
+  "Guam",                 NA_character_, NA_character_,
+  "Puerto Rico",          NA_character_, NA_character_,
+  "Virgin Islands",       NA_character_, NA_character_
+)
+
+# remove Guam, Puerto Rico, and Virgin Islands from analytic sample
+analysis_data_v2 <- analysis_data |>
+  dplyr::left_join(
+    census_region_lookup,
+    by = "STATE"
+  ) |> filter(!is.na(REGION)) |> rename(AGEG5YR = "_AGEG5YR")
+```
+
+
+```{r}
+variable_labels <- list(
+  
+  AGEG5YR = c(
+  `1`  = "18 to 24 years",
+  `2`  = "25 to 29 years",
+  `3`  = "30 to 34 years",
+  `4`  = "35 to 39 years",
+  `5`  = "40 to 44 years",
+  `6`  = "45 to 49 years",
+  `7`  = "50 to 54 years",
+  `8`  = "55 to 59 years",
+  `9`  = "60 to 64 years",
+  `10` = "65 to 69 years",
+  `11` = "70 to 74 years",
+  `12` = "75 to 79 years",
+  `13` = "80 years or older",
+  `14` = "Don't know/Refused/Missing"
+),
+
+  MARITAL = c(
+    `1` = "Married",
+    `2` = "Divorced",
+    `3` = "Widowed",
+    `4` = "Separated",
+    `5` = "Never married",
+    `6` = "Member of an unmarried couple",
+    `9` = "Refused"
+  ),
+
+  HOME = c(
+    `1` = "Own",
+    `2` = "Rent",
+    `3` = "Other arrangement",
+    `7` = "Don't know",
+    `9` = "Refused"
+  ),
+
+  PREGNANT = c(
+    `1` = "Yes",
+    `2` = "No",
+    `7` = "Don't know",
+    `9` = "Refused"
+  ),
+
+  MENTHLTH = c(
+    setNames(
+      paste(1:30, ifelse(1:30 == 1, "day", "days")),
+      as.character(1:30)
+    ),
+    `77` = "Don't know",
+    `88` = "None",
+    `99` = "Refused"
+  ),
+
+  EMPLOY = c(
+    `1` = "Employed for wages",
+    `2` = "Self-employed",
+    `3` = "Out of work for 1 year or more",
+    `4` = "Out of work for less than 1 year",
+    `5` = "Homemaker",
+    `6` = "Student",
+    `7` = "Retired",
+    `8` = "Unable to work",
+    `9` = "Refused"
+  ),
+
+  INCOME = c(
+    `1` = "Less than $15,000",
+    `2` = "$15,000 to $24,999",
+    `3` = "$25,000 to $34,999",
+    `4` = "$35,000 to $49,999",
+    `5` = "$50,000 or more", # 2017, 2019 data only has $50k or more so align other years to this format
+    `6` = "$50,000 or more",
+    `7` = "$50,000 or more",
+    `9` = "Don't know"
+  ),
+
+  EDUCA = c(
+    `1` = "No high school",
+    `2` = "High school",
+    `3` = "Some college",
+    `4` = "College graduate",
+    `9` = "Don't know"
+  ),
+
+  INSURANCE = c(
+    `1` = "Yes",
+    `2` = "No",
+    `9` = "Don't know"
+  ),
+
+  RACE = c(
+    `1` = "Non-Hispanic White",
+    `2` = "Non-Hispanic Black",
+    `3` = "Non-Hispanic Native American",
+    `4` = "Non-Hispanic Asian",
+    `5` = "Non-Hispanic Native Hawaiian",
+    `6` = "Other race, non-Hispanic",
+    `7` = "Non-Hispanic Multiracial",
+    `8` = "Hispanic",
+    `9` = "Don't know"
+  )
+)
+
+variables_to_summarize <- c(
+  "MARITAL",
+  "HOME",
+  "PREGNANT",
+  "MENTHLTH",
+  "EMPLOY",
+  "INCOME",
+  "EDUCA",
+  "INSURANCE",
+  "RACE"
+)
+```
+
+## Assess Missingness by Age Group
+6 = Age 45 to 49 (menopause starts around this age range)
+Pregnancy Status
+`1` = "Yes",
+`2` = "No",
+`7` = "Don't know",
+`9` = "Refused"
+
+`INSURANCE` = Respondents aged 18-64 who have any form of health insurance (1=yes, 2=no, 9=don't know)
+
+Women who are 50 years old or older (code 7 and above) did not answer the pregnancy question.
+```{r}
+analysis_data_v2 |> 
+  count(AGEG5YR, PREGNANT) |> 
+  group_by(AGEG5YR) |>
+  mutate(percent = round(100 *n /sum(n),3)) |> 
+  ungroup()
+
+analysis_data_v2 |> 
+  count(AGEG5YR, INSURANCE) |> 
+  group_by(AGEG5YR) |>
+  mutate(percent = round(100 *n /sum(n),3)) |> 
+  ungroup()
+```
+
+
+## U.S. Population Characteristics Over Time
+This sample consist of women of all ages.
+```{r}
+# categorical variables
+vars_to_plot <- setdiff(
+  names(analysis_data_v2),
+  c("STATE", "YEAR", "post_ban", "DIVISION", "MENTHLTH", "REGION")
+)
+lapply(vars_to_plot, function(var){
+  label_map <- variable_labels[[var]]
+  
+  ggplot(
+  analysis_data_v2,
+  aes(x = factor(.data[[var]]))
+) +
+  geom_bar(
+    fill = "steelblue",
+    color = "white"
+  ) +
+  facet_wrap(~ YEAR) +
+  theme_minimal() +
+  labs(
+    x = var,
+    y = "Count"
+  )
+})
+
+# numerical variable
+  ggplot(
+  analysis_data_v2 ,
+  aes(x = factor(MENTHLTH))
+) +
+  geom_bar(
+    fill = "steelblue",
+    color = "white"
+  ) +
+  facet_wrap(~ YEAR) +
+  theme_minimal() +
+  labs(
+    title = "Distribution of Days with Poor Mental Health",
+    x = var,
+    y = "Count"
+  )
+```
+
+```{r, eval=FALSE}
+get_descriptive_stats_over_entire_period <- function(data, var) {
+  
+  tab <- data |>
+    janitor::tabyl(
+      {{ var }},
+      show_na = TRUE
+    )
+  
+  # The first column is the categorical variable
+  category_col <- names(tab)[1]
+  
+  total_n <- sum(tab$n)
+  
+  valid_n <- sum(
+    tab$n[!is.na(tab[[category_col]])]
+  )
+  
+  tab |>
+    dplyr::mutate(
+      percent = 100 * n / total_n,
+      valid_percent = dplyr::if_else(
+        valid_n > 0 & !is.na(.data[[category_col]]),
+        100 * n / valid_n,
+        NA_real_
+      )
+    )
+}
+get_descriptive_stats_over_entire_period(analysis_data,PREGNANT)
+
+get_descriptive_stats_over_entire_period(analysis_data,MENTHLTH)
+get_descriptive_stats_over_entire_period(analysis_data,EMPLOY)
+get_descriptive_stats_over_entire_period(analysis_data,INCOME)
+get_descriptive_stats_over_entire_period(analysis_data,EDUCA)
+get_descriptive_stats_over_entire_period(analysis_data,INSURANCE)
+```
+
+
+## Summary Table of Count and Percentages
+```{r}
+library(dplyr)
+library(tidyr)
+library(purrr)
+
+summarize_categorical <- function(
+    data,
+    group_vars,
+    response_vars,
+    variable_labels
+) {
+  
+  group_vars <- as.character(group_vars)
+  response_vars <- as.character(response_vars)
+  
+  required_vars <- c(group_vars, response_vars)
+  missing_vars <- setdiff(required_vars, names(data))
+  
+  if (length(missing_vars) > 0) {
+    stop(
+      "These variables are not in the dataset: ",
+      paste(missing_vars, collapse = ", ")
+    )
+  }
+  
+  # Function to retrieve labels
+  lookup_label <- function(variable, code) {
+    
+    # Actual NA values
+    if (is.na(code) || code == "") {
+      return("Missing")
+    }
+    
+    labels <- variable_labels[[variable]]
+    
+    # No label vector exists for the variable
+    if (is.null(labels)) {
+      return(paste("Unlabeled variable:", variable))
+    }
+    
+    label <- unname(labels[as.character(code)])
+    
+    # Code does not exist in the label vector
+    if (length(label) == 0 || is.na(label)) {
+      return(paste("Unlabeled code:", code))
+    }
+    
+    label
+  }
+  
+  output_data <- data |>
+    select(all_of(required_vars))
+  
+  # Create labeled versions of subgroup variables
+  subgroup_label_vars <- character(0)
+  
+  for (group_var in group_vars) {
+    
+    if (group_var %in% names(variable_labels)) {
+      
+      label_var <- paste0(group_var, "_LABEL")
+      
+      output_data[[label_var]] <- purrr::map_chr(
+        as.character(output_data[[group_var]]),
+        ~ lookup_label(group_var, .x)
+      )
+      
+      subgroup_label_vars <- c(subgroup_label_vars, label_var)
+    }
+  }
+  
+  subgroup_vars_for_grouping <- c(
+    group_vars,
+    subgroup_label_vars
+  )
+  
+  output_data |>
+    pivot_longer(
+      cols = all_of(response_vars),
+      names_to = "VARIABLE",
+      values_to = "VALUE"
+    ) |>
+    mutate(
+      VALUE_CODE = if_else(
+        is.na(VALUE),
+        "Missing",
+        as.character(VALUE)
+      ),
+      
+      VALUE_LABEL = purrr::map2_chr(
+        VARIABLE,
+        VALUE_CODE,
+        lookup_label
+      )
+    ) |>
+    group_by(
+      across(
+        all_of(
+          c(
+            subgroup_vars_for_grouping,
+            "VARIABLE",
+            "VALUE_CODE",
+            "VALUE_LABEL"
+          )
+        )
+      )
+    ) |>
+    summarise(
+      N = n(),
+      .groups = "drop"
+    ) |>
+    group_by(
+      across(
+        all_of(
+          c(
+            subgroup_vars_for_grouping,
+            "VARIABLE"
+          )
+        )
+      )
+    ) |>
+    mutate(
+      PERCENT = round(100 * N / sum(N), 2)
+    ) |>
+    ungroup() |>
+    arrange(
+      across(all_of(subgroup_vars_for_grouping)),
+      VARIABLE,
+      VALUE_CODE
+    )
+}
+```
+
+### show summaries for any variable
+```{r}
+summarize_categorical(
+  data = analysis_data_v2 |> filter(AGEG5YR < 7), # filter out women 50 year and above to reduce missingness in pregnant and insurance response
+  group_vars = c(
+    "STATE",
+    "REGION",
+    "YEAR"
+  ),
+  response_vars = "MARITAL", # change this variable to any you want
+  variable_labels = variable_labels
+)
+
+```
+## Pregnancy-eligible range population
+```{r}
+pregnancy_eligible_pop <- analysis_data_v2 |> filter(AGEG5YR < 7)
+# categorical variables
+vars_to_plot <- setdiff(
+  names(pregnancy_eligible_pop),
+  c("STATE", "YEAR", "post_ban", "DIVISION", "MENTHLTH", "REGION")
+)
+
+plot_list <- lapply(vars_to_plot, function(var) {
+
+  # Convert the variable to a factor with numeric-looking levels
+  pregnancy_eligible_pop[[paste0(var, "_factor")]] <-
+    factor(pregnancy_eligible_pop[[var]])
+
+  var_factor <- paste0(var, "_factor")
+  label_map <- variable_labels[[var]]
+
+  # Function for legend labels
+  legend_labels <- function(x) {
+    x <- as.character(x)
+
+    if (is.null(label_map)) {
+      return(x)
+    }
+
+    value_labels <- unname(label_map[x])
+
+    # Show "code = label"; fall back to the code if no label exists
+    value_labels[is.na(value_labels)] <- x[is.na(value_labels)]
+
+    paste0(x, " = ", value_labels)
+  }
+
+  ggplot(
+    pregnancy_eligible_pop,
+    aes(
+      x = .data[[var_factor]],
+      fill = .data[[var_factor]]
+    )
+  ) +
+    geom_bar(color = "white") +
+    facet_wrap(~YEAR) +
+    scale_fill_viridis_d(
+      name = var,
+      labels = legend_labels
+    ) +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(
+        angle = 45,
+        hjust = 1
+      ),
+      legend.position = "right",
+      legend.text = element_text(size = 9)
+    ) +
+    labs(
+      x = var,
+      y = "Count"
+    )
+})
+
+# numerical variable
+  ggplot(
+  pregnancy_eligible_pop ,
+  aes(x = factor(MENTHLTH))
+) +
+  geom_bar(
+    fill = "steelblue",
+    color = "white"
+  ) +
+  facet_wrap(~ YEAR) +
+  theme_minimal() +
+  labs(
+    title = "Distribution of Days with Poor Mental Health",
+    x = var,
+    y = "Count"
+  )
+  
+names(plot_list) <- vars_to_plot
+
+# Choose the folder where plots should be saved
+output_dir <- "plots"
+
+# Create the folder if it does not already exist
+dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+
+# Save every plot
+for (plot_name in names(plot_list)) {
+  
+  ggsave(
+    filename = file.path(output_dir, paste0(plot_name, ".png")),
+    plot = plot_list[[plot_name]],
+    width = 10,
+    height = 7,
+    units = "in",
+    dpi = 300
+  )
+}
+```
+
+
+## Trends in the U.S. Regions Over Time
+```{r}
+plot_variable <- function(data, variable_name, plot_title, legend_title) {
+  
+  data |>
+    dplyr::filter(VARIABLE == variable_name) |>
+    ggplot(
+      aes(
+        x = factor(YEAR),
+        y = PERCENT,
+        fill = VALUE_LABEL
+      )
+    ) +
+    geom_col(position = "dodge") +
+    facet_wrap(~ REGION) +
+    labs(
+      title = plot_title,
+      x = "Year",
+      y = "Percent",
+      fill = legend_title
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "bottom",
+      axis.text.x = element_text(angle = 45, hjust = 1)
+    )
+}
+```
+
+```{r}
+var_by_region_plots <- list(
+  marital = plot_variable(
+    summarize_categorical(
+  data = analysis_data_v2 |> filter(AGEG5YR < 7), 
+  group_vars = c(
+    "STATE",
+    "REGION",
+    "YEAR"
+  ),
+  response_vars = "MARITAL",
+  variable_labels = variable_labels
+),
+    "MARITAL",
+    "Marital Status by Region and Year",
+    "Marital status"
+  ),
+
+  home = plot_variable(
+    
+    data = summarize_categorical(
+  data = analysis_data_v2 |> filter(AGEG5YR < 7), 
+  group_vars = c(
+    "STATE",
+    "REGION",
+    "YEAR"
+  ),
+  response_vars = "HOME",
+  variable_labels = variable_labels
+),
+    "HOME",
+    "Homeowner Status by Region and Year",
+    "Homeowner status"
+  ),
+
+  pregnant = plot_variable(
+    data = summarize_categorical(
+  data = analysis_data_v2 |> filter(AGEG5YR < 7), 
+  group_vars = c(
+    "STATE",
+    "REGION",
+    "YEAR"
+  ),
+  response_vars = "PREGNANT",
+  variable_labels = variable_labels
+),
+    "PREGNANT",
+    "Pregnancy Status by Region and Year",
+    "Pregnancy status"
+  ),
+
+  employ = plot_variable(
+    data = summarize_categorical(
+  data = analysis_data_v2 |> filter(AGEG5YR < 7), 
+  group_vars = c(
+    "STATE",
+    "REGION",
+    "YEAR"
+  ),
+  response_vars = "EMPLOY",
+  variable_labels = variable_labels
+),
+    "EMPLOY",
+    "Employment Status by Region and Year",
+    "Employment status"
+  ),
+
+  income = plot_variable(
+    data = summarize_categorical(
+  data = analysis_data_v2 |> filter(AGEG5YR < 7), 
+  group_vars = c(
+    "STATE",
+    "REGION",
+    "YEAR"
+  ),
+  response_vars = "INCOME",
+  variable_labels = variable_labels
+),
+    "INCOME",
+    "Income Categories by Region and Year",
+    "Income category"
+  ),
+
+  insurance = plot_variable(
+    data = summarize_categorical(
+  data = analysis_data_v2 |> filter(AGEG5YR < 7), 
+  group_vars = c(
+    "STATE",
+    "REGION",
+    "YEAR"
+  ),
+  response_vars = "INSURANCE",
+  variable_labels = variable_labels
+),
+    "INSURANCE",
+    "Health Insurance Status by Region and Year",
+    "Insurance status"
+  ),
+
+  race = plot_variable(
+    data = summarize_categorical(
+  data = analysis_data_v2 |> filter(AGEG5YR < 7), 
+  group_vars = c(
+    "STATE",
+    "REGION",
+    "YEAR"
+  ),
+  response_vars = "RACE",
+  variable_labels = variable_labels
+),
+    "RACE",
+    "Race and Ethnicity by Region and Year",
+    "Race and ethnicity"
+  )
+)
+```
+
+
+```{r}
+var_by_region_plots$marital
+var_by_region_plots$home
+var_by_region_plots$pregnant
+var_by_region_plots$employ
+var_by_region_plots$income
+var_by_region_plots$insurance
+var_by_region_plots$race
+```
