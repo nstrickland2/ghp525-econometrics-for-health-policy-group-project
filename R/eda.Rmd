@@ -1,5 +1,6 @@
 ---
 title: "Exploratory Data Analysis"
+author: Nyah Strickland
 format:
   pdf:
     include-in-header:
@@ -211,7 +212,7 @@ sub_dat24 <- sub_dat24 |>
 
 ```{r}
 # Roe v. Wade was overturned on June 24, 2022
-sub_dat22 <- dat22 |> select(c("_STATE","_AGEG5YR","SEXVAR","IMONTH","IDAY","IYEAR","PREGNANT", "MENTHLTH", "EMPLOY1","_INCOMG1", "EDUCA", "_HCVU652", "_RACE1", "TYPCNTR9", "RENTHOM1")) |> filter(SEXVAR==2) |> select(-SEXVAR) |> rename(INCOME='_INCOMG1', INSURANCE='_HCVU652', EMPLOY='EMPLOY1', FAMILY_PLANNING="TYPCNTR9", HOME="RENTHOM1", RACE="_RACE1") 
+sub_dat22 <- dat22 |> select(c("_STATE","_AGEG5YR","SEXVAR","IMONTH","IDAY","IYEAR","PREGNANT", "MENTHLTH", "EMPLOY1","_INCOMG1", "MARITAL","EDUCA", "_HCVU652", "_RACE1", "TYPCNTR9", "RENTHOM1")) |> filter(SEXVAR==2) |> select(-SEXVAR) |> rename(INCOME='_INCOMG1', INSURANCE='_HCVU652', EMPLOY='EMPLOY1', FAMILY_PLANNING="TYPCNTR9", HOME="RENTHOM1", RACE="_RACE1") 
 state_labels_2022 <- c(
   `1`  = "Alabama",
   `2`  = "Alaska",
@@ -427,6 +428,7 @@ sub_dat17 <- sub_dat17 |>
 
 ```
 
+
 ```{r,eval=FALSE}
 sub_dat23 <- dat23 |> select(c("_STATE","SEXVAR","PREGNANT", "MENTHLTH","EMPLOY1", "_INCOMG1", "EDUCA", "_HCVU653", "_RACE")) |> filter(SEXVAR==2) |> select(-SEXVAR) |> rename(INCOME='_INCOMG1', INSURANCE='_HCVU653', EMPLOY='EMPLOY1')
 
@@ -438,6 +440,8 @@ sub_dat20 <- dat20 |> select(c("_STATE","SEXVAR","PREGNANT", "MENTHLTH","EMPLOY1
 
 sub_dat18 <- dat18 |> select(c("_STATE", "SEX1","PREGNANT", "MENTHLTH", "EMPLOY1", "_INCOMG", "EDUCA", "_HCVU651",  "_RACE", "RENTHOM1", "MARITAL")) |> filter(SEX1==2) |> select(-SEX1) |> rename(INCOME='_INCOMG', INSURANCE='_HCVU651', EMPLOY='EMPLOY1')
 ```
+
+
 
 ## merge relevant questionnaire years
 
@@ -751,10 +755,16 @@ analysis_data_v2 |>
 
 
 ## U.S. Population Characteristics Over Time
-
+This sample consist of women of all ages.
 ```{r}
 # categorical variables
-sapply(names(analysis_data_v2)[!names(analysis_data_v2) %in% c("STATE","YEAR","post_ban", "DIVISION","MENTHLTH", "REGION")], function(var){
+vars_to_plot <- setdiff(
+  names(analysis_data_v2),
+  c("STATE", "YEAR", "post_ban", "DIVISION", "MENTHLTH", "REGION")
+)
+lapply(vars_to_plot, function(var){
+  label_map <- variable_labels[[var]]
+  
   ggplot(
   analysis_data_v2,
   aes(x = factor(.data[[var]]))
@@ -789,7 +799,7 @@ sapply(names(analysis_data_v2)[!names(analysis_data_v2) %in% c("STATE","YEAR","p
   )
 ```
 
-```{r}
+```{r, eval=FALSE}
 get_descriptive_stats_over_entire_period <- function(data, var) {
   
   tab <- data |>
@@ -827,7 +837,7 @@ get_descriptive_stats_over_entire_period(analysis_data,INSURANCE)
 ```
 
 
-## Summarize Categorical Variables into Count and Percentages
+## Summary Table of Count and Percentages
 ```{r}
 library(dplyr)
 library(tidyr)
@@ -975,8 +985,109 @@ summarize_categorical(
 )
 
 ```
+## Pregnancy-eligible range population
+```{r}
+pregnancy_eligible_pop <- analysis_data_v2 |> filter(AGEG5YR < 7)
+# categorical variables
+vars_to_plot <- setdiff(
+  names(pregnancy_eligible_pop),
+  c("STATE", "YEAR", "post_ban", "DIVISION", "MENTHLTH", "REGION")
+)
+
+plot_list <- lapply(vars_to_plot, function(var) {
+
+  # Convert the variable to a factor with numeric-looking levels
+  pregnancy_eligible_pop[[paste0(var, "_factor")]] <-
+    factor(pregnancy_eligible_pop[[var]])
+
+  var_factor <- paste0(var, "_factor")
+  label_map <- variable_labels[[var]]
+
+  # Function for legend labels
+  legend_labels <- function(x) {
+    x <- as.character(x)
+
+    if (is.null(label_map)) {
+      return(x)
+    }
+
+    value_labels <- unname(label_map[x])
+
+    # Show "code = label"; fall back to the code if no label exists
+    value_labels[is.na(value_labels)] <- x[is.na(value_labels)]
+
+    paste0(x, " = ", value_labels)
+  }
+
+  ggplot(
+    pregnancy_eligible_pop,
+    aes(
+      x = .data[[var_factor]],
+      fill = .data[[var_factor]]
+    )
+  ) +
+    geom_bar(color = "white") +
+    facet_wrap(~YEAR) +
+    scale_fill_viridis_d(
+      name = var,
+      labels = legend_labels
+    ) +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(
+        angle = 45,
+        hjust = 1
+      ),
+      legend.position = "right",
+      legend.text = element_text(size = 9)
+    ) +
+    labs(
+      x = var,
+      y = "Count"
+    )
+})
+
+# numerical variable
+  ggplot(
+  pregnancy_eligible_pop ,
+  aes(x = factor(MENTHLTH))
+) +
+  geom_bar(
+    fill = "steelblue",
+    color = "white"
+  ) +
+  facet_wrap(~ YEAR) +
+  theme_minimal() +
+  labs(
+    title = "Distribution of Days with Poor Mental Health",
+    x = var,
+    y = "Count"
+  )
+  
+names(plot_list) <- vars_to_plot
+
+# Choose the folder where plots should be saved
+output_dir <- "plots"
+
+# Create the folder if it does not already exist
+dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+
+# Save every plot
+for (plot_name in names(plot_list)) {
+  
+  ggsave(
+    filename = file.path(output_dir, paste0(plot_name, ".png")),
+    plot = plot_list[[plot_name]],
+    width = 10,
+    height = 7,
+    units = "in",
+    dpi = 300
+  )
+}
+```
 
 
+## Trends in the U.S. Regions Over Time
 ```{r}
 plot_variable <- function(data, variable_name, plot_title, legend_title) {
   
@@ -1005,7 +1116,6 @@ plot_variable <- function(data, variable_name, plot_title, legend_title) {
 }
 ```
 
-## Trends in the U.S. Regions Over Time
 ```{r}
 var_by_region_plots <- list(
   marital = plot_variable(
