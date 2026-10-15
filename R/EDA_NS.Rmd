@@ -506,10 +506,11 @@ insurance_type_plot <- function(var, data, label_map, plot_title) {
   ) +
     geom_bar(color = "white") +
     scale_fill_viridis_d(
-      name = var,
-      labels = legend_labels,
-      drop = TRUE
-    ) +
+  name = var,
+  labels = legend_labels,
+  na.value = "grey70",
+  na.translate = TRUE
+) +
     theme_minimal() +
     theme(
       axis.text.x = element_text(
@@ -622,6 +623,29 @@ ggsave(
 )
 ```
 
+```{r}
+library(janitor)
+# level of missingness in insurance type by year
+cat("Health Insurance Type, BRFSS 2017")
+sub_dat17 |> rename(age = "_AGEG5YR") |>
+    filter(age < 7) |> tabyl(TYPEINS)
+
+cat("Health Insurance Type, BRFSS 2019")
+sub_dat19 |> rename(age = "_AGEG5YR") |>
+    filter(age < 7) |> tabyl(TYPEINS) 
+
+cat("Health Insurance Type, BRFSS 2022")
+sub_dat22 |> rename(age = "_AGEG5YR") |>
+    filter(age < 7) |> tabyl(TYPEINS)
+
+cat("Health Insurance Type, BRFSS 2024")
+sub_dat24 |> rename(age = "_AGEG5YR") |>
+    filter(age < 7) |> tabyl(TYPEINS)
+
+cat("Health Insurance Type, BRFSS 2025")
+sub_dat25 |> rename(age = "_AGEG5YR") |>
+    filter(age < 7) |> tabyl(TYPEINS) 
+```
 
 ## merge relevant questionnaire years
 
@@ -1211,7 +1235,9 @@ plot_list <- lapply(vars_to_plot, function(var) {
     facet_wrap(~YEAR) +
     scale_fill_viridis_d(
       name = var,
-      labels = legend_labels
+      labels = legend_labels,
+  na.value = "grey70",
+  na.translate = TRUE
     ) +
     theme_minimal() +
     theme(
